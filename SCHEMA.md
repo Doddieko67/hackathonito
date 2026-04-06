@@ -2,7 +2,7 @@
 **Los Mossitos · Genius Arena 2026**
 
 Modelo relacional para Supabase PostgreSQL.
-Orientado a RBAC, flujo de solicitudes y registro de visitas para algoritmo de equidad.
+Orientado a RBAC, flujo de solicitudes, rutas de itinerario en mapa y registro de visitas para algoritmo de equidad.
 
 ---
 
@@ -10,9 +10,9 @@ Orientado a RBAC, flujo de solicitudes y registro de visitas para algoritmo de e
 
 - UUID como PK en tablas principales.
 - Timestamps en UTC con timestamptz.
-- Soft delete solo donde aplique a negocio publicado.
-- Auditoría explícita para cambios de estado.
-- Catálogos normalizados para consistencia y validación.
+- Auditoria explicita para cambios de estado.
+- Catalogos normalizados para consistencia y validacion.
+- Coordenadas en decimal WGS84 (lat/lng).
 
 ---
 
@@ -61,7 +61,7 @@ ticket_status:
 
 ---
 
-## 3. Tablas núcleo de usuarios y RBAC
+## 3. Tablas nucleo de usuarios y RBAC
 
 ### users_profile
 
@@ -76,7 +76,7 @@ Extiende auth.users de Supabase.
 - created_at timestamptz not null default now()
 - updated_at timestamptz not null default now()
 
-Índices:
+Indices:
 - idx_users_profile_country (country_of_origin)
 - idx_users_profile_language (language_code)
 
@@ -94,15 +94,15 @@ Extiende auth.users de Supabase.
 - created_by uuid null references auth.users(id)
 - primary key (user_id, role_id)
 
-Índices:
+Indices:
 - idx_user_roles_role (role_id)
 
 Regla:
-- Un usuario puede tener múltiples roles, pero en runtime se valida contexto por endpoint.
+- Un usuario puede tener multiples roles, pero en runtime se valida contexto por endpoint.
 
 ---
 
-## 4. Catálogos de negocio
+## 4. Catalogos de negocio
 
 ### borough_catalog
 
@@ -143,7 +143,7 @@ Valores:
 
 ---
 
-## 5. Solicitudes de negocio y revisión
+## 5. Solicitudes de negocio y revision
 
 ### business_requests
 
@@ -157,6 +157,10 @@ Valores:
 - borough_code text not null references borough_catalog(code)
 - neighborhood text not null
 - google_maps_url text null
+- latitude numeric(9,6) null
+- longitude numeric(9,6) null
+- geocode_source text null
+- geocode_confidence numeric(5,2) null
 - training_campus_hint training_campus null
 - employees_women_count integer not null default 0 check (employees_women_count >= 0)
 - employees_men_count integer not null default 0 check (employees_men_count >= 0)
@@ -181,10 +185,11 @@ Valores:
 - updated_at timestamptz not null default now()
 
 Checks sugeridos:
-- operation_modes cardinality >= 1
+- cardinality(operation_modes) >= 1
 - si operation_modes contiene OTRO, operation_modes_other no null
+- latitude/longitude deben venir juntos (ambos null o ambos con valor)
 
-Índices:
+Indices:
 - idx_business_requests_status (status)
 - idx_business_requests_lock (current_lock_admin_user_id)
 - idx_business_requests_owner_email (owner_email)
@@ -203,7 +208,7 @@ Historial de acciones administrativas.
 - performed_by_user_id uuid not null references auth.users(id)
 - created_at timestamptz not null default now()
 
-Índices:
+Indices:
 - idx_request_reviews_request (business_request_id, created_at desc)
 
 ### business_profiles
@@ -218,6 +223,10 @@ Se crea al aprobar solicitud.
 - borough_code text not null references borough_catalog(code)
 - neighborhood text not null
 - google_maps_url text null
+- latitude numeric(9,6) not null
+- longitude numeric(9,6) not null
+- geocoded_at timestamptz null
+- location_source text not null default 'request_or_geocode'
 - operation_days_hours text not null
 - social_links text[] not null default '{}'
 - cover_image_url text null
@@ -226,9 +235,10 @@ Se crea al aprobar solicitud.
 - created_at timestamptz not null default now()
 - updated_at timestamptz not null default now()
 
-Índices:
+Indices:
 - idx_business_profiles_owner (owner_user_id)
 - idx_business_profiles_active (is_active)
+- idx_business_profiles_geo (latitude, longitude)
 
 ---
 
@@ -241,7 +251,7 @@ Se crea al aprobar solicitud.
 - payload jsonb not null
 - created_at timestamptz not null default now()
 
-Índice:
+Indice:
 - idx_tourist_questionnaires_user (tourist_user_id, created_at desc)
 
 ### recommendations
@@ -263,7 +273,7 @@ Se crea al aprobar solicitud.
 - estimated_walk_minutes integer null
 - created_at timestamptz not null default now()
 
-Índices:
+Indices:
 - idx_recommendation_items_recommendation (recommendation_id, rank)
 - idx_recommendation_items_business (business_profile_id)
 
@@ -278,8 +288,54 @@ Se crea al aprobar solicitud.
 - created_at timestamptz not null default now()
 - updated_at timestamptz not null default now()
 
-Índices:
+Indices:
 - idx_itineraries_user (tourist_user_id, updated_at desc)
+
+### itinerary_stops
+
+Paradas normalizadas por dia para render de mapa y recalculo de ruta.
+
+- id uuid pk default gen_random_uuid()
+- itinerary_id uuid not null references itineraries(id)
+- route_date date not null
+- stop_order integer not null check (stop_order >= 1)
+- stop_type text not null check (stop_type in ('BUSINESS','POI','MATCH','CUSTOM'))
+- business_profile_id uuid null references business_profiles(id)
+- label text not null
+- start_time time null
+- end_time time null
+- latitude numeric(9,6) not null
+- longitude numeric(9,6) not null
+- created_at timestamptz not null default now()
+
+Restricciones:
+- unique (itinerary_id, route_date, stop_order)
+
+Indices:
+- idx_itinerary_stops_itinerary_day (itinerary_id, route_date, stop_order)
+
+### itinerary_daily_routes
+
+Cache de geometria y resumen de ruta por dia de itinerario.
+
+- id uuid pk default gen_random_uuid()
+- itinerary_id uuid not null references itineraries(id)
+- route_date date not null
+- provider text not null default 'mapbox-directions'
+- profile text not null check (profile in ('walking','driving')) default 'walking'
+- waypoints jsonb not null default '[]'::jsonb
+- route_geometry jsonb not null
+- distance_meters integer not null default 0
+- duration_seconds integer not null default 0
+- is_stale boolean not null default false
+- generated_at timestamptz not null default now()
+- updated_at timestamptz not null default now()
+
+Restricciones:
+- unique (itinerary_id, route_date, profile)
+
+Indices:
+- idx_itinerary_daily_routes_itinerary (itinerary_id, route_date)
 
 ---
 
@@ -287,7 +343,7 @@ Se crea al aprobar solicitud.
 
 ### visits
 
-Registro de visitas/acciones usadas para saturación y señales de conversión.
+Registro de visitas/acciones usadas para saturacion y senales de conversion.
 
 - id uuid pk default gen_random_uuid()
 - tourist_user_id uuid not null references auth.users(id)
@@ -308,7 +364,7 @@ Reglas:
 - dedupe_key unique para evitar duplicados por reintento.
 - local_day derivado de occurred_at en zona America/Mexico_City.
 
-Índices:
+Indices:
 - uq_visits_dedupe_key unique (dedupe_key)
 - idx_visits_business_day (business_profile_id, local_day)
 - idx_visits_business_occurred (business_profile_id, occurred_at desc)
@@ -316,7 +372,7 @@ Reglas:
 
 ### daily_business_saturation
 
-Tabla agregada para consultas rápidas del algoritmo.
+Tabla agregada para consultas rapidas del algoritmo.
 
 - business_profile_id uuid not null references business_profiles(id)
 - day date not null
@@ -327,15 +383,15 @@ Tabla agregada para consultas rápidas del algoritmo.
 - updated_at timestamptz not null default now()
 - primary key (business_profile_id, day)
 
-Índices:
+Indices:
 - idx_daily_saturation_day (day, saturation_score desc)
 
 Mantenimiento:
-- Trigger en visits actualiza agregados en inserción.
+- Trigger en visits actualiza agregados en insercion.
 
 ---
 
-## 8. Tickets técnicos
+## 8. Tickets tecnicos
 
 ### technical_tickets
 
@@ -350,13 +406,13 @@ Mantenimiento:
 - created_at timestamptz not null default now()
 - updated_at timestamptz not null default now()
 
-Índices:
+Indices:
 - idx_tickets_status (status)
 - idx_tickets_severity (severity)
 
 ---
 
-## 9. Auditoría
+## 9. Auditoria
 
 ### audit_logs
 
@@ -370,13 +426,13 @@ Mantenimiento:
 - metadata jsonb not null default '{}'::jsonb
 - created_at timestamptz not null default now()
 
-Índices:
+Indices:
 - idx_audit_entity (entity_type, entity_id, created_at desc)
 - idx_audit_actor (actor_user_id, created_at desc)
 
 ---
 
-## 10. Reglas de transición de estado (solicitudes)
+## 10. Reglas de transicion de estado (solicitudes)
 
 Permitidas:
 - Pendiente -> En revision (claim)
@@ -404,45 +460,51 @@ Control de concurrencia:
   - Admin ve todas.
   - SuperAdmin ve todas.
 - business_profiles:
-  - Público: lectura de campos publicados.
-  - EncargadoDelNegocio: edición limitada de su negocio.
+  - Publico: lectura de campos publicados.
+  - EncargadoDelNegocio: edicion limitada de su negocio.
+- itinerary_stops e itinerary_daily_routes:
+  - Turista: CRUD solo de sus itinerarios.
+  - Admin/SuperAdmin: solo lectura para soporte.
 - visits:
-  - Turista inserta solo para sí mismo.
+  - Turista inserta solo para si mismo.
   - Admin/SuperAdmin lectura agregada.
 - audit_logs: solo Admin/SuperAdmin lectura.
 
-Implementación recomendada:
+Implementacion recomendada:
 - helper SQL has_role(auth.uid(), 'ADMIN').
 - vistas seguras para panel admin.
 
 ---
 
-## 12. SQL operativo mínimo (pseudobase)
+## 12. SQL operativo minimo (pseudobase)
 
 1. Crear enums.
-2. Crear catálogos base.
-3. Crear tablas núcleo (users_profile, roles, user_roles).
+2. Crear catalogos base.
+3. Crear tablas nucleo (users_profile, roles, user_roles).
 4. Crear business_requests + reviews + profiles.
 5. Crear cuestionario/recomendaciones/itinerarios.
-6. Crear visits + daily_business_saturation + trigger de agregación.
-7. Crear tickets y audit_logs.
-8. Aplicar índices.
-9. Aplicar políticas RLS.
-10. Seed de roles y catálogos.
+6. Crear itinerary_stops + itinerary_daily_routes.
+7. Crear visits + daily_business_saturation + trigger de agregacion.
+8. Crear tickets y audit_logs.
+9. Aplicar indices.
+10. Aplicar politicas RLS.
+11. Seed de roles y catalogos.
 
 ---
 
 ## 13. Pendientes menores antes de cierre final
 
-- Confirmar si social_links será text[] o jsonb estructurado por red.
-- Confirmar si owner_age se conservará completo o solo rango por privacidad.
-- Definir retención de visits crudas y política de archivado.
-- Definir umbral exacto de saturación_score para lib/equity.ts.
+- Confirmar si social_links sera text[] o jsonb estructurado por red.
+- Confirmar si owner_age se conservara completo o solo rango por privacidad.
+- Definir retencion de visits crudas y politica de archivado.
+- Definir umbral exacto de saturation_score para lib/equity.ts.
+- Definir estrategia de geocoding fallback cuando no haya coordenadas confiables.
 
 ---
 
 ## Cambios
 
-| Fecha | Quién | Qué |
+| Fecha | Quien | Que |
 |---|---|---|
 | 2026-04-06 | Alan | v1.0 — modelo de datos, estados y visitas para algoritmo de equidad. |
+| 2026-04-06 | Alan | v1.1 — soporte de coordenadas y rutas de mapa por dia de itinerario. |
