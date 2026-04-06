@@ -48,6 +48,59 @@ Por qué este: el equipo ya sabe Next.js, un repo elimina coordinación de servi
 
 ---
 
+## Modelo de usuarios y control de acceso (backend)
+
+Roles activos del sistema:
+
+| Rol | Autenticación | Permisos principales |
+|---|---|---|
+| Turista | Email+password, Google, Apple + verificación por correo | Perfil, cuestionario, generación/edición/guardado de itinerario, descarga PDF |
+| EncargadoDelNegocio | Registro de solicitud + correo de seguimiento | Alta de solicitud de negocio, correcciones si hay retroalimentación, edición limitada tras aprobación |
+| Admin | Inicio de sesión con rol administrativo | Toma de solicitud, revisión, bloqueo por estado, aprobar/rechazar con retroalimentación |
+| SuperAdmin | Inicio de sesión con rol técnico | Atención de tickets, supervisión técnica, métricas y operación del sistema |
+
+### Reglas RBAC mínimas
+
+- El backend valida rol en cada endpoint con claims del token y/o tablas de roles.
+- Ningún rol puede escribir campos de otro dominio (ejemplo: Turista no modifica solicitudes de negocio).
+- Toda transición de estado de solicitud se registra con `updated_by`, `updated_at` y comentario.
+- Las acciones administrativas deben generar auditoría (quién, cuándo, desde qué estado a cuál).
+
+### Flujo Turista (backend)
+
+1. Registro: email/password o proveedor social (Google/Apple).
+2. Campos obligatorios de onboarding: idioma y país de origen.
+3. Verificación por correo antes de habilitar sesión completa.
+4. Cuestionario interactivo para perfilado.
+5. Generación de itinerario automático y persistencia.
+6. Operaciones posteriores: guardar, regenerar, editar (agregar/quitar elementos), descargar PDF y edición de perfil.
+
+### Flujo EncargadoDelNegocio (backend)
+
+1. Envía solicitud de negocio con formulario completo (21 campos definidos por producto).
+2. Estado inicial: `Pendiente`.
+3. Recibe correo de "solicitud recibida y pendiente de revisión".
+4. Si Admin rechaza con observaciones: vuelve a `Pendiente` tras corrección del solicitante.
+5. Si Admin aprueba: recibe correo de acceso y se habilita su portal de perfil de negocio con edición limitada.
+
+### Flujo Admin (backend)
+
+Estados de solicitud: `Pendiente`, `En revision`, `Rechazado`, `Aprobado`.
+
+- Al abrir una solicitud en `Pendiente`, transición automática a `En revision`.
+- Mientras esté en `En revision`, la solicitud queda bloqueada para otros admins.
+- Resultado de revisión:
+	- `Aprobado` + notificación de acceso al EncargadoDelNegocio.
+	- `Rechazado` + retroalimentación obligatoria para corrección.
+
+### Flujo SuperAdmin (backend)
+
+- Gestión operativa de tickets técnicos del sistema.
+- Visibilidad transversal para diagnóstico (logs, métricas, errores de integración).
+- No participa en la revisión funcional diaria de solicitudes salvo incidencia.
+
+---
+
 ## Estructura de carpetas
 
 ```
@@ -93,11 +146,15 @@ mexgo/
 ## Flujo principal
 
 1. Turista abre PWA por QR → Next.js detecta idioma con `Accept-Language`.
-2. Cuestionario → `POST /api/recomendar` con perfil básico.
-3. API Route → `lib/cultural.ts` (parámetros del país) → `lib/equity.ts` (score con negocios de Supabase) → 4–6 tarjetas.
-4. Frontend renderiza. No procesa nada.
-5. Si tiene boleto → `POST /api/itinerario` → Gemini integra el partido al plan del día.
-6. Itinerario → `localStorage` para offline.
+2. Registro/login (email, Google o Apple) + verificación por correo.
+3. Onboarding pide idioma y país de origen.
+4. Cuestionario → `POST /api/recomendar` con perfil básico.
+5. API Route → `lib/cultural.ts` (parámetros del país) → `lib/equity.ts` (score con negocios de Supabase) → 4–6 tarjetas.
+6. Frontend renderiza. No procesa nada.
+7. Si tiene boleto → `POST /api/itinerario` → Gemini integra el partido al plan del día.
+8. Itinerario persistido y editable + descarga PDF.
+
+Flujo paralelo de negocio: alta de solicitud (`Pendiente`) → toma por Admin (`En revision`, bloqueo) → resultado (`Aprobado` o `Rechazado`) con notificación por correo.
 
 ---
 
@@ -110,7 +167,7 @@ mexgo/
 | Gemini            | Fidel | `lib/gemini.ts`, `app/api/itinerario/`          |
 | Frontend turista  | Emi    | `app/(turista)/`, `components/turista/`         |
 | Frontend admin    | Farid  | `app/(admin)/`, `components/admin/`             |
-| Backend / Supabase| Alan   | `app/api/`, `lib/supabase.ts`, migraciones      |
+| Backend / Supabase| Alan   | `app/api/`, `lib/supabase.ts`, migraciones, RBAC, workflow de solicitudes |
 | Apoyo / QA        | Xavier | datos de prueba, tests                          |
 
 ---
@@ -130,3 +187,4 @@ mexgo/
 | 2026-03-31 | Fidel | v1.0 — evaluación de patrones, decisión inicial. |
 | 2026-03-31 | Fidel | v1.1 — nombres reales, párrafos cortos.      |
 | 2026-03-31 | Fidel | v1.2 — migrado a `.md`, estilo cuaderno.     |
+| 2026-04-06 | Alan | v1.3 — modelo de usuarios, RBAC y flujo de solicitudes por estados. |

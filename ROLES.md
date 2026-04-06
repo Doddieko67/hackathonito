@@ -3,6 +3,28 @@
 
 Responsabilidades estrictas y mini-proyectos de preparación pre-hackathon.
 
+---
+
+## Roles de plataforma (usuarios finales)
+
+> Estos roles son del producto, no del equipo de desarrollo.
+
+| Rol | Objetivo | Acciones permitidas |
+|---|---|---|
+| Turista | Descubrir y planear su viaje con IA | Registro/login, verificación por correo, cuestionario, itinerario autogenerado, guardar/regenerar/editar, descargar PDF, editar perfil |
+| EncargadoDelNegocio | Registrar su negocio para validación | Enviar solicitud de alta, atender observaciones, reenviar, acceder a perfil de negocio tras aprobación |
+| Admin | Revisar solicitudes de negocio | Tomar solicitud, bloquear por revisión, aprobar/rechazar, devolver retroalimentación |
+| SuperAdmin | Operación técnica del sistema | Atender tickets técnicos, monitoreo y soporte de incidencias |
+
+### Estados de solicitud de negocio
+
+`Pendiente` -> `En revision` -> (`Aprobado` o `Rechazado`)
+
+Reglas:
+- Al abrir una solicitud pendiente, cambia a `En revision` y se bloquea para otros admins.
+- Si se rechaza con comentarios y el negocio corrige, vuelve a `Pendiente`.
+- Toda transición debe registrar auditoría y disparar correo transaccional.
+
 ## Distribución general
 | Quién | Rol principal | Tecnologías clave |
 |---|---|---|
@@ -34,11 +56,96 @@ Responsabilidades estrictas y mini-proyectos de preparación pre-hackathon.
 - Diseñar dashboard administrativo básico para gestión de negocios.
 
 ## Alan
-**Responsabilidad:** Infraestructura de BD, esquema SQL, endpoints, tiempo real.
+**Responsabilidad:** Infraestructura de BD, esquema SQL, auth/RBAC, endpoints, workflow de solicitudes y notificaciones.
 **Preparación:**
-- Definir esquema SQL relacional en Supabase.
-- Construir API Routes con operaciones CRUD completas.
-- Configurar `Supabase Realtime` para actualizaciones de saturación en vivo.
+- Definir esquema SQL relacional en Supabase con tablas de `users`, `roles`, `tourist_profiles`, `business_requests`, `business_profiles`, `request_reviews`, `audit_logs`.
+- Implementar auth para Turista con email/password y OAuth (Google/Apple), incluyendo verificación de correo.
+- Persistir onboarding de Turista con `idioma` y `pais_origen` como campos obligatorios.
+- Construir endpoints para cuestionario, generación/regeneración de itinerario, edición de itinerario y exportación PDF.
+- Implementar flujo de solicitud de negocio con 21 campos, estados (`Pendiente`, `En revision`, `Rechazado`, `Aprobado`) y bloqueo de concurrencia cuando un Admin toma revisión.
+- Crear endpoints de revisión para Admin con retroalimentación obligatoria al rechazar.
+- Configurar correos transaccionales: recibido de solicitud, solicitud con observaciones, solicitud aprobada, verificación de cuenta.
+- Configurar `Supabase Realtime` solo donde aporte valor operativo (cambios de estado y panel admin).
+
+### Campos obligatorios de la solicitud de negocio
+
+El formulario de EncargadoDelNegocio debe contemplar estos 21 campos:
+
+1. Nombre completo (como identificación oficial)
+2. Edad
+3. Género
+4. Correo electrónico
+5. WhatsApp de contacto
+6. Alcaldía
+7. Colonia y, opcionalmente, link de Google Maps + sede sugerida para capacitación
+8. Número de mujeres y hombres empleados
+9. Nombre del negocio
+10. Descripción del negocio (máximo 150 caracteres)
+11. Antigüedad inicial del negocio (rangos)
+12. Tiempo operando de forma continua
+13. Días y horarios de operación
+14. Formas de operación/venta (selección múltiple)
+15. Otra forma de venta (texto)
+16. Estatus ante SAT
+17. Redes sociales del negocio
+18. Cómo adaptaría e impulsaría su negocio para Mundial 2026
+19. En qué usaría el apoyo económico
+20. Sede preferida para capacitación presencial
+21. Dudas o comentarios adicionales
+
+### Catálogos sugeridos para backend (normalización)
+
+Alcaldías permitidas en catálogo principal:
+- Alvaro Obregon
+- Azcapotzalco
+- Benito Juarez
+- Coyoacan
+- Cuajimalpa
+- Cuauhtemoc
+- Gustavo A. Madero
+- Iztapalapa
+- Magdalena Contreras
+- Miguel Hidalgo
+- Milpa Alta
+- Tlahuac
+- Tlalpan
+- Venustiano Carranza
+- Xochimilco
+- Otro
+
+Rangos de inicio de negocio (campo 11):
+- Menos de un ano
+- 1-3 anos
+- 3-5 anos
+- Mas de 5 anos
+
+Formas de operacion/venta (campo 14, multiselect):
+- Cuento con local o espacio
+- Realizo ventas a domicilio por app o por mi cuenta
+- Vendo en bazares, eventos o tianguis
+- Vendo a otros negocios o distribuidores
+- Realizo venta ambulante o en via publica
+- Otro
+
+Estatus SAT (campo 16):
+- Si, es formal y esta registrado
+- Estoy en proceso de registrarlo
+- No esta registrado pero me interesa
+- Tal vez
+- No y no me interesa
+
+Sede de capacitacion presencial (campo 20):
+- HUB AZTECA (Coyoacan)
+- MIDE (Centro Historico)
+
+### Validaciones backend minimas
+
+- Campo 10: maximo 150 caracteres.
+- Campo 7: aceptar texto libre + URL opcional de Google Maps.
+- Campos 8 y 12: numericos no negativos.
+- Campo 14: al menos una opcion seleccionada.
+- Rechazo de solicitud: comentario de retroalimentacion obligatorio.
+- Aprobacion de solicitud: generar habilitacion de cuenta para EncargadoDelNegocio.
 
 ## Xavier (Rol Ampliado: El "Ojo del Jurado")
 **Responsabilidad:** Calidad integral, curaduría de datos, pulido de interfaz y blindaje de la demo.
@@ -71,3 +178,4 @@ Responsabilidades estrictas y mini-proyectos de preparación pre-hackathon.
 | Fecha | Quién | Qué |
 |---|---|---|
 | 2026-03-31 | IA | v1.1 — Expansión de Xavier a QA Global e Integrador. |
+| 2026-04-06 | Alan | v1.2 — Se agregan roles de plataforma y alcance backend de auth, RBAC y solicitudes. |
