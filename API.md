@@ -305,6 +305,67 @@ Response 200:
   }
 }
 
+### GET /api/itinerario/{itineraryId}/route
+
+Obtiene la ruta del mapa para un dia del itinerario en formato GeoJSON.
+
+Auth: Turista dueño
+
+Query:
+- date: YYYY-MM-DD (obligatorio)
+- profile: walking | driving (opcional, default walking)
+- refresh: true | false (opcional, default false)
+
+Reglas:
+- Usa coordenadas de los lugares del itinerario.
+- Si existe ruta cacheada y refresh=false, devuelve esa.
+- Si refresh=true o la ruta esta stale, recalcula con provider de rutas.
+
+Response 200:
+{
+  "ok": true,
+  "data": {
+    "itineraryId": "uuid",
+    "date": "2026-06-14",
+    "provider": "mapbox-directions",
+    "profile": "walking",
+    "distanceMeters": 4820,
+    "durationSeconds": 4210,
+    "waypoints": [
+      {"order": 1, "label": "Tacos Dona Ana", "lat": 19.345123, "lng": -99.123456},
+      {"order": 2, "label": "Cafe Barrio Azteca", "lat": 19.347000, "lng": -99.129000}
+    ],
+    "geometry": {
+      "type": "LineString",
+      "coordinates": [[-99.123456, 19.345123], [-99.129000, 19.347000]]
+    }
+  }
+}
+
+Errores:
+- 409 CONFLICT si hay menos de 2 puntos con coordenadas validas.
+- 422 VALIDATION_ERROR si la fecha no pertenece al itinerario.
+
+### POST /api/itinerario/{itineraryId}/route/rebuild
+
+Fuerza recalculo de ruta para uno o varios dias del itinerario.
+
+Auth: Turista dueño
+
+Body:
+{
+  "dates": ["2026-06-14"],
+  "profile": "walking"
+}
+
+Response 200:
+{
+  "ok": true,
+  "data": {
+    "rebuilt": 1
+  }
+}
+
 ---
 
 ## 4. Solicitud de registro de negocio (EncargadoDelNegocio)
@@ -325,6 +386,8 @@ Body (21 campos):
   "borough": "Coyoacan",
   "neighborhood": "Santa Ursula",
   "googleMapsUrl": "https://maps.google.com/...",
+  "latitude": null,
+  "longitude": null,
   "trainingCampusHint": "HUB_AZTECA",
   "employeesWomenCount": 2,
   "employeesMenCount": 1,
@@ -347,6 +410,7 @@ Reglas:
 - Estado inicial siempre Pendiente.
 - businessDescription max 150.
 - operationModes mínimo 1.
+- latitude/longitude opcionales en alta; si faltan, se intentan derivar por geocoding en revision/aprobacion.
 - Notificación por correo: solicitud recibida.
 
 Response 201:
@@ -501,6 +565,11 @@ Campos editables limitados:
 - coverImageUrl
 - contactPhone
 
+Campos visibles de ubicacion:
+- latitude
+- longitude
+- googleMapsUrl
+
 Campos no editables por este rol:
 - satStatus (solo flujo administrativo)
 - ownerIdentityData
@@ -603,6 +672,8 @@ Body:
 | POST /api/recomendar | Si | No | No | No |
 | POST /api/itinerario | Si | No | No | No |
 | PATCH /api/itinerario/{id} | Si (dueno) | No | No | No |
+| GET /api/itinerario/{id}/route | Si (dueno) | No | No | No |
+| POST /api/itinerario/{id}/route/rebuild | Si (dueno) | No | No | No |
 | POST /api/business-requests | Si/No auth | Si | No | No |
 | PATCH /api/business-requests/{id}/resubmit | No | Si (dueno) | No | No |
 | POST /api/admin/business-requests/{id}/claim | No | No | Si | No |
@@ -619,6 +690,7 @@ Body:
 - Definir provider exacto para envío de correo transaccional.
 - Ajustar rate limits por endpoint en producción.
 - Cerrar formato exacto del PDF (plantilla visual).
+- Confirmar fallback de rutas cuando Directions API no responda.
 - Versionar contrato definitivo en OpenAPI 3.1.
 
 ---
@@ -628,3 +700,4 @@ Body:
 | Fecha | Quién | Qué |
 |---|---|---|
 | 2026-04-06 | Alan | v1.0 — contratos casi finales por rol, estados y visitas para equidad. |
+| 2026-04-06 | Alan | v1.1 — rutas de itinerario en mapa, rebuild de ruta y coordenadas de lugares. |
