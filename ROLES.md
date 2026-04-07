@@ -35,23 +35,27 @@ Reglas:
 | Xavier | QA Global / Integrador | Postman, UI Polish, E2E, Datos de Impacto |
 
 ## Fidel
-**Responsabilidad:** Arquitectura, algoritmo `lib/equity.ts`, Gemini, despliegue AWS.
+**Responsabilidad:** Arquitectura, algoritmo `lib/equity.ts` (verificar su implementación) , Gemini, despliegue AWS (para producción, no para pruebas).
 **Preparación:**
-- Crear repositorio Next.js con ruta `/api/recomendar`.
+- Crear repositorio del proyecto.
+- Determinar el funcionamiento de la generación de itinerarios
 - Conectar a Gemini Flash para devolver itinerarios en JSON estructurado.
 - Desplegar API funcional en AWS (capa gratuita).
 
 ## Emi
 **Responsabilidad:** Flujo del turista, mapas, tarjetas, modo offline.
 **Preparación:**
-- Construir UI móvil Mobile-First con Tailwind CSS.
-- Integrar mapa (Mapbox) con tarjetas deslizables.
-- Implementar persistencia en `localStorage` para simular modo offline.
+- Panel turistas 
+- Integracion de multiples mapas y rutas (Mapbox y Google Routes, places y Maps) con tarjetas deslizables.
+
 
 ## Farid
-**Responsabilidad:** Panel admin, autenticación, gestión de imágenes.
+**Responsabilidad:** Panel admin y super admin, negocio, autenticación, gestión de imágenes.
 **Preparación:**
 - Crear flujo de `/login` con Supabase Auth.
+- Crear flujo /register
+- Crear flujo admin y super admin
+- Crear flujo de negocio
 - Implementar subida de archivos a Cloudinary y renderizado de respuesta.
 - Diseñar dashboard administrativo básico para gestión de negocios.
 
@@ -69,7 +73,7 @@ Reglas:
 
 ### Campos obligatorios de la solicitud de negocio
 
-El formulario de EncargadoDelNegocio debe contemplar estos 21 campos:
+El formulario de Encargado Del Negocio debe contemplar estos 21 campos:
 
 1. Nombre completo (como identificación oficial)
 2. Edad
@@ -147,15 +151,13 @@ Sede de capacitacion presencial (campo 20):
 - Rechazo de solicitud: comentario de retroalimentacion obligatorio.
 - Aprobacion de solicitud: generar habilitacion de cuenta para EncargadoDelNegocio.
 
-## Xavier (Rol Ampliado: El "Ojo del Jurado")
-**Responsabilidad:** Calidad integral, curaduría de datos, pulido de interfaz y blindaje de la demo.
+## Xavier 
+**Responsabilidad:** Calidad integral, pruebas, UX/UI (mockups) y documentación .
 **Funciones clave:**
-- **Curaduría de Impacto:** Crear datos semilla (JSON) que no sean solo "texto falso", sino negocios reales con descripciones atractivas y fotos que luzcan el proyecto.
 - **Vigilancia de Contratos:** Validar que el Backend (Alan) y los Frontends coincidan exactamente con lo definido en `API.md`.
 - **QA End-to-End:** Probar el flujo completo como si fuera un turista real (QR -> Itinerario -> Offline) detectando errores de lógica.
 - **Pulido UI/UX:** Intervenir en el código para ajustar márgenes, tipografías y colores de marca, asegurando que la app se vea "pixel-perfect".
-- **Guardián del Golden Path:** Asegurar que la ruta específica de la demostración funcione al 100% y decretar el "congelamiento de código" antes del pitch final.
-
+- Generación de documento para la pagina genius arena
 **Preparación:**
 - Script generador de 50 negocios verosímiles con coordenadas y sello "Ola México".
 - Dominar Postman para estresar los endpoints del backend.

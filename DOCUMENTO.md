@@ -58,7 +58,7 @@ La arquitectura y tecnologías se mantienen. El cambio actual es de flujos y per
 | Framework  | Next.js 15          | ✓ Confirmado                        |
 | BD         | Supabase/PostgreSQL | ✓ Confirmado                        |
 | IA         | Gemini Flash        | ✓ Confirmado                        |
-| Mapas      | Mapbox GL JS        | ✓ Confirmado                        |
+| Mapas      | Mapbox,GL,JS,Google APIS        | ✓ Confirmado                        |
 | i18n       | i18next + DeepL     | ✓ Confirmado                        |
 | Imágenes   | Cloudinary          | ✓ Confirmado                        |
 | Estilos    | Tailwind CSS        | ✓ Confirmado                        |

@@ -22,8 +22,6 @@ Reglas base de entorno y herramientas. Nadie empieza a codear sin esto.
 | Extensión | Para qué |
 |---|---|
 | Tailwind CSS IntelliSense | Autocompletado exacto de clases |
-| Prettier | Estandarización visual del código |
-| ESLint | Detección de errores pre-compilación |
 
 - → Obligatorio activar `Format on Save` para eliminar conflictos de Git por espacios.
 
