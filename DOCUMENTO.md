@@ -24,6 +24,15 @@ Para ver con mas detalles y entender mejor el objetivo de este proyecto,
 al inicio, por lo que, van a cambiar a lo largo del desarrollo, entonces no se debe usar el mencionado
 como referencia principal para la toma de decisiones tecnicas, si no meros conceptuales.
 
+### Modelo de usuarios activo
+
+- Turista
+- EncargadoDelNegocio
+- Admin
+- SuperAdmin
+
+La arquitectura y tecnologías se mantienen. El cambio actual es de flujos y permisos (RBAC) en backend, especialmente para autenticación, onboarding, revisión de solicitudes de negocio y operación técnica.
+
 ---
 
 ## Equipo
@@ -93,6 +102,8 @@ Detalle de decisiones → `ARQUITECTURA.md`.
 - → **Algoritmo solo en `lib/equity.ts`** — nunca en el cliente.
 - → **Sin `NEXT_PUBLIC_` en claves de servidor** — Gemini, Mapbox server y Supabase service role son exclusivos del servidor.
 - → **Docs en `.md`** — todo Markdown. PDF desde Pandoc si se necesita entregar.
+- → **Modelo RBAC de 4 roles** — Turista, EncargadoDelNegocio, Admin y SuperAdmin.
+- → **Workflow de solicitudes de negocio por estados** — `Pendiente`, `En revision`, `Rechazado`, `Aprobado`.
 
 ---
 
@@ -101,6 +112,8 @@ Detalle de decisiones → `ARQUITECTURA.md`.
 - ? **Servicio AWS exacto** — Amplify / EC2+Nginx / App Runner. (Fidel)
 - ? **Contratos de API** — schemas por endpoint antes del día 1. Alan + Fidel → `API.md`.
 - ? **Caché del score de saturación** — memoria / Supabase / Redis. Impacta `lib/equity.ts`. (Fidel)
+- ? **Definir contratos finales de auth social** — Google/Apple en Supabase Auth y estrategia de linking de cuentas. (Alan)
+- ? **Definir plantilla de correos transaccionales** — verificación de cuenta, solicitud recibida, observaciones, aprobación. (Alan + Farid)
 
 ---
 
@@ -111,3 +124,4 @@ Detalle de decisiones → `ARQUITECTURA.md`.
 | 2026-03-31 | Fidel | v1.0 — documento inicial en `.tex`.        |
 | 2026-03-31 | Fidel | v1.1 — nombres reales del equipo.          |
 | 2026-03-31 | Fidel | v1.2 — migrado a `.md`, estilo cuaderno.   |
+| 2026-04-06 | Alan | v1.3 — se oficializa modelo de usuarios y flujo RBAC en backend. |
