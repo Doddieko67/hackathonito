@@ -104,41 +104,98 @@ Estados de solicitud: `Pendiente`, `En revision`, `Rechazado`, `Aprobado`.
 ## Estructura de carpetas
 
 ```
-mexgo/
-├── app/
-│   ├── (turista)/
-│   │   ├── page.tsx              # Bienvenida
-│   │   ├── cuestionario/
-│   │   ├── itinerario/
-│   │   └── mapa/
-│   ├── (admin)/
-│   │   ├── login/
-│   │   ├── dashboard/
-│   │   └── negocio/[id]/
-│   └── api/                      # BFF — nunca llamado directo desde cliente
-│       ├── recomendar/           # POST: perfil → tarjetas
-│       ├── itinerario/           # POST: preferencias → itinerario
-│       ├── negocios/             # CRUD negocios
-│       └── auth/
-│
-├── lib/                          # Lógica pura — sin deps de Next.js
-│   ├── equity.ts                 # Algoritmo de equidad
-│   ├── cultural.ts               # Perfil cultural por país
-│   ├── gemini.ts                 # Wrapper Gemini
-│   ├── mapbox.ts                 # Wrapper Mapbox
-│   ├── supabase.ts               # Cliente servidor
-│   └── supabase-client.ts        # Cliente browser (solo auth)
-│
-├── components/
-│   ├── ui/                       # Compartido — ver FRONTEND.md
-│   ├── turista/
-│   └── admin/
-│
-├── docs/                         # Todos los .md del proyecto
-├── supabase/migrations/
-├── .env.local                    # Nunca en git
-├── .env.example                  # Sí en git — sin valores reales
-└── next.config.ts
+middleware.ts                          # RBAC: redirige por rol — tourist/business/admin/superadmin
+
+constants/
+└── index.ts                           # GEMINI_MODEL, radios de búsqueda, límites
+
+types/
+└── types.ts                           # Negocio, Turista, EventoItinerario, ChatMessage...
+
+hooks/
+├── useItinerary.ts                    # localStorage del itinerario (offline)
+├── useGeolocation.ts                  # navigator.geolocation
+└── useAuth.ts                         # sesión de Supabase en cliente
+
+lib/                                   # Lógica pura — sin deps de Next.js ni de providers
+├── gemini.ts                          # cliente + ciclo while de function calling
+├── equity.ts                          # score = (relevancia × proximidad) + β - saturación
+├── cultural.ts                        # parámetros culturales por país de origen
+├── businesses.ts                      # buscarNegocios() — mock hoy, Supabase mañana
+├── itinerary.ts                       # agregarEvento(), leerItinerario()
+├── maps.ts                            # Mapbox/Google Maps: rutas, geocoding
+├── supabase.ts                        # cliente servidor (service role)
+├── supabase-client.ts                 # cliente browser (solo auth)
+└── tools/
+    ├── index.ts                       # junta declarations + handlers de todos los dominios
+    ├── itinerary.ts                   # tools: buscar_negocios, agregar_evento, leer_itinerario
+    └── maps.ts                        # tools: buscar_ruta, geocodificar
+
+components/
+├── ui/                                # compartido — Button, Card, Input, Badge
+├── tourist/
+│   ├── BusinessCard.tsx               # tarjeta deslizable con sello Ola México
+│   ├── BusinessMap.tsx                # mapa + pins de recomendaciones
+│   ├── Questionnaire.tsx              # flujo conversacional de onboarding
+│   └── ItineraryView.tsx             # vista de eventos del día
+├── business/
+│   └── RequestForm.tsx               # formulario de alta (21 campos)
+└── admin/
+    ├── RequestCard.tsx               # card de solicitud pendiente
+    └── ReviewForm.tsx                # aprobar/rechazar con comentario obligatorio
+
+app/
+├── layout.tsx
+├── globals.css
+├── page.tsx                           # bienvenida QR — acceso sin login
+
+├── auth/
+│   ├── login/page.tsx                 # Google OAuth + email/password
+│   ├── register/page.tsx              # registro para EncargadoDelNegocio
+│   └── callback/route.ts             # callback OAuth de Supabase (Google)
+
+├── (tourist)/
+│   ├── layout.tsx
+│   ├── onboarding/page.tsx           # cuestionario + boleto de partido
+│   ├── map/page.tsx                   # mapa + tarjetas deslizables
+│   ├── itinerary/page.tsx            # itinerario completo + descarga PDF
+│   └── profile/page.tsx              # editar idioma, país, preferencias
+
+├── (business)/
+│   ├── layout.tsx
+│   ├── request/page.tsx              # form de alta (21 campos)
+│   └── profile/page.tsx              # perfil del negocio aprobado
+
+├── (admin)/
+│   ├── layout.tsx
+│   ├── requests/page.tsx             # lista de solicitudes filtrable por estado
+│   └── requests/[id]/page.tsx        # revisar, aprobar o rechazar
+
+├── (superadmin)/
+│   ├── layout.tsx
+│   ├── tickets/page.tsx              # tickets técnicos
+│   └── monitoring/page.tsx           # saturación en tiempo real, audit logs
+
+└── api/                              # BFF — nunca llamado directo desde cliente
+    ├── chat/route.ts                 # POST: mensaje → Gemini function calling → respuesta
+    ├── recommend/route.ts            # POST: perfil + coords → 4-6 tarjetas (equity)
+    ├── itinerary/
+    │   ├── route.ts                  # POST: generar | GET: leer
+    │   └── [id]/route.ts             # PATCH: editar | DELETE: archivar
+    ├── businesses/
+    │   ├── route.ts                  # GET: listar con filtros de equidad
+    │   └── [id]/route.ts             # GET: detalle | PATCH: editar (encargado)
+    ├── requests/
+    │   ├── route.ts                  # POST: nueva solicitud | GET: listar (admin)
+    │   └── [id]/
+    │       ├── route.ts              # GET: detalle
+    │       └── review/route.ts       # POST: claim/approve/reject (admin)
+    └── visits/route.ts               # POST: registrar visita → alimenta algoritmo equidad
+
+supabase/migrations/                  # migraciones SQL — responsabilidad de Alan
+.env.local                            # nunca en git
+.env.example                          # sí en git — sin valores reales
+next.config.ts
 ```
 
 ---
@@ -162,13 +219,11 @@ Flujo paralelo de negocio: alta de solicitud (`Pendiente`) → toma por Admin (`
 
 | Módulo            | Quién  | Archivos                                        |
 |-------------------|--------|-------------------------------------------------|
-| Arquitectura + deploy | Fidel | `next.config.ts`, AWS, `.env`               |
-| Algoritmo         | Fidel | `lib/equity.ts`, `lib/cultural.ts`              |
-| Gemini            | Fidel | `lib/gemini.ts`, `app/api/itinerario/`          |
-| Frontend turista  | Emi    | `app/(turista)/`, `components/turista/`         |
-| Frontend admin    | Farid  | `app/(admin)/`, `components/admin/`             |
-| Backend / Supabase| Alan   | `app/api/`, `lib/supabase.ts`, migraciones, RBAC, workflow de solicitudes |
-| Apoyo / QA        | Xavier | datos de prueba, tests                          |
+| Arquitectura + deploy | Fidel | `next.config.ts`, AWS, `.env`, `constants/`, `lib/gemini.ts`, `lib/equity.ts`, `lib/cultural.ts`, `lib/tools/`, `app/api/chat/`, `app/api/recommend/`, `app/api/itinerary/` |
+| Auth / Backend    | Alan   | `middleware.ts`, `lib/supabase.ts`, `lib/supabase-client.ts`, `app/auth/`, `app/api/requests/`, `app/api/visits/`, `app/api/businesses/`, migraciones, RBAC |
+| Frontend turista  | Emi    | `app/(tourist)/`, `components/tourist/`, `hooks/` |
+| Frontend admin/negocio | Farid | `app/(admin)/`, `app/(business)/`, `app/(superadmin)/`, `components/admin/`, `components/business/` |
+| Apoyo / QA        | Xavier | `types/types.ts`, datos de prueba, tests, polish UI |
 
 ---
 
@@ -188,3 +243,4 @@ Flujo paralelo de negocio: alta de solicitud (`Pendiente`) → toma por Admin (`
 | 2026-03-31 | Fidel | v1.1 — nombres reales, párrafos cortos.      |
 | 2026-03-31 | Fidel | v1.2 — migrado a `.md`, estilo cuaderno.     |
 | 2026-04-06 | Alan | v1.3 — modelo de usuarios, RBAC y flujo de solicitudes por estados. |
+| 2026-04-06 | Fidel | v1.4 — estructura de carpetas en inglés, Google OAuth, tools/ para Gemini, hooks/, types/, constants/. |
